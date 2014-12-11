@@ -3,141 +3,170 @@ package com.arlen.cnblogs.fragment;
 import java.util.ArrayList;
 import java.util.List;
 
-import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Message;
-import android.support.v4.app.ListFragment;
-import android.view.ContextMenu;
-import android.view.ContextMenu.ContextMenuInfo;
+import android.support.v4.app.Fragment;
+import android.support.v4.widget.SwipeRefreshLayout;
+import android.support.v4.widget.SwipeRefreshLayout.OnRefreshListener;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AbsListView;
+import android.widget.AbsListView.OnScrollListener;
+import android.widget.AdapterView;
+import android.widget.AdapterView.OnItemClickListener;
+import android.widget.AdapterView.OnItemLongClickListener;
 import android.widget.ListView;
 
 import com.arlen.cnblogs.R;
 import com.arlen.cnblogs.UserActivity;
 import com.arlen.cnblogs.adapter.UserListAdapter;
 import com.arlen.cnblogs.entity.User;
+import com.arlen.cnblogs.task.UserListTask;
+import com.arlen.cnblogs.utils.AppMacros;
 import com.arlen.cnblogs.utils.AppUtils;
-import com.arlen.cnblogs.utils.Config;
 
-public class UserFragment extends ListFragment {
+public class UserFragment extends Fragment implements OnItemLongClickListener,
+		OnItemClickListener, OnRefreshListener, OnScrollListener {
+	private static final String TAG = UserFragment.class.getSimpleName();
 
-	private List<User> userList;
-	private String path;
-	private int pageIndex;
-	private int pageSize;
+	private SwipeRefreshLayout swipeRefreshLayout;
+	private ListView listView;
 
 	private UserListAdapter adapter;
 
-	private Handler handler = null;
+	private String path;
+	private int pageSize;
+	private int pageIndex = 1;
+	private List<User> userList;
+
+	private int lastVisibleIndex;
+	private int maxVisibleIndex = 400;
 
 	private Intent intent;
 
 	public UserFragment() {
+		super();
+	}
 
+	@Override
+	public void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		Log.i(TAG, "onCreate");
 	}
 
 	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container,
 			Bundle savedInstanceState) {
+		Log.i(TAG, "onCreateView");
 		View rootView = inflater.inflate(R.layout.fragment_user, container,
 				false);
 		return rootView;
 	}
 
 	@Override
-	public void onListItemClick(ListView l, View v, int position, long id) {
+	public void onViewCreated(View view, Bundle savedInstanceState) {
+		super.onViewCreated(view, savedInstanceState);
+		Log.i(TAG, "onViewCreated");
+		initComponent();
+		initData();
+	}
+
+	@Override
+	public void onRefresh() {
+		initPath(1);
+		// new UserListTask().execute(path, "refresh");
+		new UserListTask(userList, swipeRefreshLayout, adapter).execute(path,
+				"refresh");
+	}
+
+	@Override
+	public void onItemClick(AdapterView<?> parent, View view, int position,
+			long id) {
+		Log.i(TAG, "onItemClick -- " + position);
 		showUserItem(userList.get(position));
 	}
 
 	@Override
-	public void onActivityCreated(Bundle savedInstanceState) {
-		super.onActivityCreated(savedInstanceState);
+	public boolean onItemLongClick(AdapterView<?> parent, View view,
+			int position, long id) {
+		Log.i(TAG, "onItemLongClick -- " + position);
+		return false;
 	}
 
 	@Override
-	public void onAttach(Activity activity) {
-		super.onAttach(activity);
-	}
+	public void onScrollStateChanged(AbsListView view, int scrollState) {
 
-	@Override
-	public void onCreate(Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
-		userList = new ArrayList<User>();
+		if (adapter.getCount() < maxVisibleIndex) {
+			if (scrollState == OnScrollListener.SCROLL_STATE_IDLE
+					&& lastVisibleIndex == adapter.getCount() - 1) {
 
-		Runnable runnable = new Runnable() {
-
-			@Override
-			public void run() {
-				try {
-					Thread.sleep(2 * 1000);
-					initData();
-					handler.sendMessage(handler.obtainMessage(0, userList));
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
+				pageIndex++;
+				initPath(pageIndex);
+				swipeRefreshLayout.setRefreshing(true);
+				new UserListTask(userList, swipeRefreshLayout, adapter)
+						.execute(path, "loadMore");
 			}
-		};
-
-		try {
-			new Thread(runnable).start();
-			handler = new Handler() {
-				@SuppressWarnings("unchecked")
-				@Override
-				public void handleMessage(Message msg) {
-					super.handleMessage(msg);
-					if (msg.what == 0) {
-						ArrayList<User> users = (ArrayList<User>) msg.obj;
-						BindListData(users);
-					}
-				}
-			};
-
-		} catch (Exception e) {
-			e.printStackTrace();
+		} else {
+			// Toast.makeText(getActivity(), "×îºóÒ»Ò³!",
+			// Toast.LENGTH_SHORT).show();
 		}
 	}
 
 	@Override
-	public void onCreateContextMenu(ContextMenu menu, View v,
-			ContextMenuInfo menuInfo) {
-		super.onCreateContextMenu(menu, v, menuInfo);
+	public void onScroll(AbsListView view, int firstVisibleItem,
+			int visibleItemCount, int totalItemCount) {
+		lastVisibleIndex = firstVisibleItem + visibleItemCount - 1;
 	}
 
-	@Override
-	public void onDestroy() {
-		super.onDestroy();
+	private void initComponent() {
+		swipeRefreshLayout = (SwipeRefreshLayout) this.getActivity()
+				.findViewById(R.id.swipeRefreshLayoutUser);
+		swipeRefreshLayout.setOnRefreshListener(this);
+		swipeRefreshLayout.setColorSchemeResources(
+				android.R.color.holo_blue_bright,
+				android.R.color.holo_green_light,
+				android.R.color.holo_orange_light,
+				android.R.color.holo_red_light);
+
+		listView = (ListView) this.getActivity()
+				.findViewById(R.id.listViewUser);
+		listView.setOnItemClickListener(this);
+		listView.setOnItemLongClickListener(this);
+		listView.setOnScrollListener(this);
 	}
 
 	private void initData() {
-		userList.clear();
+		userList = new ArrayList<User>();
+		adapter = new UserListAdapter(getActivity(), userList);
+		listView.setAdapter(adapter);
 
-		path = Config.RECOMMEND_BLOGS_PAGED;
-		pageIndex = 1;
-		pageSize = Config.BLOG_PAGE_SIZE;
+		initPath(1);
+		swipeRefreshLayout.setRefreshing(true);
+		new UserListTask(userList, swipeRefreshLayout, adapter).execute(path,
+				"init");
+	}
+
+	private void initPath(int pageIndex) {
+		// http://wcf.open.cnblogs.com/blog/bloggers/recommend/{PAGEINDEX}/{PAGESIZE};
+		path = AppMacros.RECOMMEND_BLOGS_PAGED;
+		pageSize = AppMacros.PAGE_SIZE;
 		path = path.replace("{PAGEINDEX}", "" + pageIndex);
 		path = path.replace("{PAGESIZE}", "" + pageSize);
-		userList = AppUtils.getUserList(path);
+
+		Log.i(TAG, "pageIndex£º" + pageIndex);
 	}
 
-	private void BindListData(ArrayList<User> users) {
-		adapter = new UserListAdapter(getActivity(), users);
-		this.setListAdapter(adapter);
-	}
-
-	private void showUserItem(User userEntry) {
+	private void showUserItem(User user) {
 		intent = new Intent(this.getActivity(), UserActivity.class);
-		intent.putExtra("blogapp", userEntry.getBlogapp());
-		intent.putExtra("link", userEntry.getUserLink().toString());
-		intent.putExtra("avatar", userEntry.getUserAvatar().toString());
-		intent.putExtra("postcount", userEntry.getPostCount());
+		intent.putExtra("blogapp", user.getBlogapp());
+		intent.putExtra("link", user.getUserLink().toString());
+		intent.putExtra("avatar", user.getUserAvatar().toString());
+		intent.putExtra("postcount", user.getPostCount());
 		intent.putExtra("updated",
-				AppUtils.parseDateToString(userEntry.getUpdatedDate()));
-		intent.putExtra("title", userEntry.getTitle());
+				AppUtils.parseDateToString(user.getUpdatedDate()));
+		intent.putExtra("title", user.getTitle());
 		startActivity(intent);
 	}
-
 }

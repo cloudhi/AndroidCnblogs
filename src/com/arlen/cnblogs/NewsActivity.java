@@ -3,8 +3,6 @@ package com.arlen.cnblogs;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
-import org.apache.commons.lang.StringEscapeUtils;
-
 import android.app.ActionBar;
 import android.app.Activity;
 import android.content.Intent;
@@ -15,12 +13,15 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.ViewConfiguration;
 import android.view.Window;
+import android.webkit.WebSettings;
+import android.webkit.WebSettings.LayoutAlgorithm;
+import android.webkit.WebView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import com.arlen.cnblogs.utils.AppUtils;
-import com.arlen.cnblogs.utils.Config;
+import com.arlen.cnblogs.utils.AppMacros;
+import com.arlen.cnblogs.utils.HttpUtil;
 import com.nostra13.universalimageloader.core.ImageLoader;
 import com.nostra13.universalimageloader.core.ImageLoaderConfiguration;
 
@@ -29,7 +30,7 @@ public class NewsActivity extends Activity {
 	private ImageView imageViewTopinIcon;
 	private TextView textViewNewsTitle;
 	private TextView textViewPublisheDate;
-	private TextView textViewNewsContent;
+	private WebView webViewNewsContent;
 
 	private Intent intent;
 
@@ -67,7 +68,7 @@ public class NewsActivity extends Activity {
 			public void run() {
 				try {
 					Thread.sleep(2 * 1000);
-					newsContent = AppUtils.getNewsContent(path);
+					newsContent = HttpUtil.getNewsContent(path);
 					handler.sendMessage(handler.obtainMessage(0, newsContent));
 				} catch (InterruptedException e) {
 					e.printStackTrace();
@@ -84,9 +85,8 @@ public class NewsActivity extends Activity {
 					super.handleMessage(msg);
 					if (msg.what == 0) {
 						String content = (String) msg.obj;
-						content = StringEscapeUtils.unescapeHtml(content);
-						content = AppUtils.replaceXmlTag(content);
-						textViewNewsContent.setText(content);
+						webViewNewsContent.loadDataWithBaseURL(null, content,
+								"text/html", "UTF-8", null);
 					}
 				}
 
@@ -116,7 +116,7 @@ public class NewsActivity extends Activity {
 		imageLoader.init(ImageLoaderConfiguration.createDefault(this
 				.getApplicationContext()));
 
-		path = Config.NEWS_CONTENT;
+		path = AppMacros.NEWS_CONTENT;
 		path = path.replace("{CONTENTID}", "" + newsId);
 	}
 
@@ -124,7 +124,14 @@ public class NewsActivity extends Activity {
 		imageViewTopinIcon = (ImageView) findViewById(R.id.imageViewNewsTopinIcon);
 		textViewNewsTitle = (TextView) findViewById(R.id.textViewNewsTitle);
 		textViewPublisheDate = (TextView) findViewById(R.id.textViewPublisheDate);
-		textViewNewsContent = (TextView) findViewById(R.id.textViewNewsContent);
+		webViewNewsContent = (WebView) findViewById(R.id.webViewNewsContent);
+		webViewNewsContent.setHorizontalScrollBarEnabled(false);// 设置水平滚动条，true表示允许使用
+		WebSettings webSettings = webViewNewsContent.getSettings();
+		webSettings.setDefaultTextEncodingName("UTF-8");
+		webSettings.setCacheMode(1);
+		webSettings.setLayoutAlgorithm(LayoutAlgorithm.SINGLE_COLUMN);
+		webViewNewsContent.loadDataWithBaseURL(null, "<center/>正在加载 ...<hr>",
+				"text/html", "UTF-8", null);
 
 		LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(
 				128, 128);

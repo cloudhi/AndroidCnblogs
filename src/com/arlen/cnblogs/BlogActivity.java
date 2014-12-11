@@ -3,8 +3,6 @@ package com.arlen.cnblogs;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
-import org.apache.commons.lang.StringEscapeUtils;
-
 import android.app.ActionBar;
 import android.app.Activity;
 import android.content.Intent;
@@ -15,12 +13,15 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.ViewConfiguration;
 import android.view.Window;
+import android.webkit.WebSettings;
+import android.webkit.WebSettings.LayoutAlgorithm;
+import android.webkit.WebView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import com.arlen.cnblogs.utils.AppUtils;
-import com.arlen.cnblogs.utils.Config;
+import com.arlen.cnblogs.utils.AppMacros;
+import com.arlen.cnblogs.utils.HttpUtil;
 import com.nostra13.universalimageloader.core.ImageLoader;
 import com.nostra13.universalimageloader.core.ImageLoaderConfiguration;
 
@@ -29,7 +30,7 @@ public class BlogActivity extends Activity {
 	private ImageView imageViewBlogAvatar;
 	private TextView textViewBlogTitle;
 	private TextView textViewBlogComments;
-	private TextView textViewBlogContent;
+	private WebView webViewBlogContent;
 
 	private Intent intent;
 	private String authorAvatar;
@@ -78,7 +79,14 @@ public class BlogActivity extends Activity {
 		imageViewBlogAvatar = (ImageView) findViewById(R.id.imageViewBlogAvatar);
 		textViewBlogTitle = (TextView) findViewById(R.id.textViewBlogTitle);
 		textViewBlogComments = (TextView) findViewById(R.id.textViewBlogComments);
-		textViewBlogContent = (TextView) findViewById(R.id.textViewBlogContent);
+		webViewBlogContent = (WebView) findViewById(R.id.webViewBlogContent);
+		webViewBlogContent.setHorizontalScrollBarEnabled(false);// 设置水平滚动条，true表示允许使用
+		WebSettings webSettings = webViewBlogContent.getSettings();
+		webSettings.setDefaultTextEncodingName("UTF-8");
+		webSettings.setCacheMode(1);
+		webSettings.setLayoutAlgorithm(LayoutAlgorithm.SINGLE_COLUMN);
+		webViewBlogContent.loadDataWithBaseURL(null, "<center/>正在加载 ...<hr>",
+				"text/html", "UTF-8", null);
 
 		LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(
 				128, 128);
@@ -101,7 +109,7 @@ public class BlogActivity extends Activity {
 		imageLoader.init(ImageLoaderConfiguration.createDefault(this
 				.getApplicationContext()));
 
-		path = Config.BLOGS_CONTENTS;
+		path = AppMacros.BLOGS_CONTENTS;
 		path = path.replace("{POSTID}", "" + blogId);
 	}
 
@@ -119,7 +127,7 @@ public class BlogActivity extends Activity {
 			public void run() {
 				try {
 					Thread.sleep(2 * 1000);
-					blogContent = AppUtils.getBlogContent(path);
+					blogContent = HttpUtil.getBlogContent(path);
 					handler.sendMessage(handler.obtainMessage(0, blogContent));
 				} catch (InterruptedException e) {
 					e.printStackTrace();
@@ -136,9 +144,8 @@ public class BlogActivity extends Activity {
 					super.handleMessage(msg);
 					if (msg.what == 0) {
 						String content = (String) msg.obj;
-						content = StringEscapeUtils.unescapeHtml(content);
-						content = AppUtils.replaceXmlTag(content);
-						textViewBlogContent.setText(content);
+						webViewBlogContent.loadDataWithBaseURL(null, content,
+								"text/html", "UTF-8", null);
 					}
 				}
 
